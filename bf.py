@@ -14,17 +14,18 @@ class ScriptManager:
     def parse_progs(self):
         self.progs = [x.strip().splitlines() for x in self.text.split("END")]
 
-    def is_valid(self, char):
-        return char == "+" or char == "-" or char == ">" or char == "<" or char == "." or char == "," or char == "[" or char == "]"
+    def is_valid(self, char): 
+        return char == "+" or char == "-" or char == ">" or char == "<" or char == "." or char == "," or char == "[" or char == "]" # ikr
 
     def ask(self):
         print("WHICH PROGRAM SHOULD I RUN?")
         for x in range(0, len(self.progs) - 1):
             print("{0} : {1}".format(x, self.progs[x][0]))
         print("input : ", end="")
-        return ''.join([x for x in self.progs[int(input())][1] if self.is_valid(x)])
+        # performance doesn't matter in a menu, does it?
+        return ''.join([x for x in self.progs[int(input())][1] if self.is_valid(x)]) 
 
-
+# Kinda useless but still nice to have
 class Stack:
     def __init__(self):
         self.hidden_list = []
@@ -55,7 +56,7 @@ class BrainfuckInterpreter:
         self.output_buffer = []
         self.loop_stack = Stack()
         self.terminated = False
-        self.wrapping = True
+        self.wrapping = True  # should negative memory addresses be emulated
         self.op_count = 0
         self.op_actions = {
             "+": self.increment_value,
@@ -72,25 +73,21 @@ class BrainfuckInterpreter:
         return len(self.memory_state) > self.ptr
 
     def decrement_value(self):
-        if self.is_mem_def():
-            if self.memory_state[self.ptr] - 1 < -128:
-                self.memory_state[self.ptr] = 127
-            else:
-                self.memory_state[self.ptr] -= 1
-        else:
+        if not self.is_mem_def():
             raise Exception("Failed at decrementing the pointer")
+        self.memory_state[self.ptr] -= 1
+        if self.memory_state[self.ptr] < -128:
+            self.memory_state[self.ptr] = 127
 
     def add_input(self):
         self.memory_state[self.ptr] = ord(input()[0])
 
     def increment_value(self):
-        if self.is_mem_def():
-            if self.memory_state[self.ptr] + 1 > 127:
-                self.memory_state[self.ptr] = -128
-            else:
-                self.memory_state[self.ptr] += 1
-        else:
+        if not self.is_mem_def():
             raise Exception("Failed at incrementing the pointer")
+        self.memory_state[self.ptr] += 1
+        if self.memory_state[self.ptr] > 127:
+            self.memory_state[self.ptr] = -128
 
     def increment_ptr(self):
         self.ptr += 1
@@ -106,26 +103,27 @@ class BrainfuckInterpreter:
         else:
             self.ptr -= 1
 
-    def add_output(self): 
+    def add_output(self):
         self.output_buffer.append(chr(self.memory_state[self.ptr]))
 
     def count_next(self):
         op_count = 1
         cl_count = 0
         for i in range(self.script_index + 1, len(self.op_list)):
-            if self.op_list[i] == "]" and op_count == cl_count + 1:
-                return i
+            if self.op_list[i] == "]":
+                if op_count == cl_count + 1:
+                    return i
+                else:
+                    cl_count += 1
             elif self.op_list[i] == "[":
                 op_count += 1
-            elif self.op_list[i] == "]":
-                cl_count += 1
 
     def start_loop(self):
         if self.memory_state[self.ptr] != 0:
             self.loop_stack.push(self.script_index)
         else:
             self.script_index = self.count_next()
-            
+
     def end_loop(self):
         if self.loop_stack.length() == 0:
             raise Exception("No opening loop")
@@ -178,14 +176,7 @@ class BrainfuckInterpreter:
         print("OUTPUT : {0}".format("".join(self.output_buffer)))
 
 
-
-
 s = ScriptManager("bfprogs.cbf")
 a = BrainfuckInterpreter(s.ask())
 a.gen_op_list()
 a.exec_script()
-
-
-
-s="[+[---[----][---[]]---]+]+++[---]"
-
