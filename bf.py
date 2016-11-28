@@ -1,5 +1,28 @@
+#! /usr/bin/python3
 from time import sleep
 from os import system
+
+
+class ScriptManager:
+    def __init__(self, path):
+        self.path = path
+        self.f = open(self.path, "r")
+        self.text = self.f.read()
+        self.f.close()
+        self.parse_progs()
+
+    def parse_progs(self):
+        self.progs = [x.strip().splitlines() for x in self.text.split("END")]
+
+    def is_valid(self, char):
+        return char == "+" or char == "-" or char == ">" or char == "<" or char == "." or char == "," or char == "[" or char == "]"
+
+    def ask(self):
+        print("WHICH PROGRAM SHOULD I RUN?")
+        for x in range(0, len(self.progs) - 1):
+            print("{0} : {1}".format(x, self.progs[x][0]))
+        print("input : ", end="")
+        return ''.join([x for x in self.progs[int(input())][1] if self.is_valid(x)])
 
 
 class Stack:
@@ -32,7 +55,7 @@ class BrainfuckInterpreter:
         self.output_buffer = []
         self.loop_stack = Stack()
         self.terminated = False
-        self.wrapping = False
+        self.wrapping = True
         self.op_count = 0
         self.op_actions = {
             "+": self.increment_value,
@@ -44,19 +67,6 @@ class BrainfuckInterpreter:
             "[": self.start_loop,
             "]": self.end_loop
         }
-
-    def print_state(self):
-        print("----")
-        print("Index : {0}".format(self.script_index))
-        print("Executing : {0}".format(self.op_list[self.script_index]))
-        print("Pointer : {0}".format(self.ptr))
-        print("Output buffer : {0}".format("".join(self.output_buffer)))
-        print("Loop stack : ")
-        print(self.loop_stack.hidden_list)
-        print("{0} addresses".format(len(self.memory_state)))
-        for i in range(0, len(self.memory_state)):
-            print("{0} : {1}".format(i, str(self.memory_state[i])))
-        print("----")
 
     def is_mem_def(self):
         return len(self.memory_state) > self.ptr
@@ -92,19 +102,32 @@ class BrainfuckInterpreter:
             if not self.wrapping:
                 raise Exception("Pointer can't be < 0")
             else:
-                self.memory_state.append(0)
-                self.ptr = (len(self.memory_state) - 1)
+                self.memory_state.insert(0, 0)
         else:
             self.ptr -= 1
 
-    def add_output(self):
-        self.output_buffer.append(chr(self.memory_state[self.ptr % 128]))
+    def add_output(self): 
+        self.output_buffer.append(chr(self.memory_state[self.ptr]))
+
+    def count_next(self):
+        op_count = 1
+        cl_count = 0
+        for i in range(self.script_index + 1, len(self.op_list)):
+            if self.op_list[i] == "]" and op_count == cl_count + 1:
+                return i
+            elif self.op_list[i] == "[":
+                op_count += 1
+            elif self.op_list[i] == "]":
+                cl_count += 1
 
     def start_loop(self):
-        self.loop_stack.push(self.script_index)
-
+        if self.memory_state[self.ptr] != 0:
+            self.loop_stack.push(self.script_index)
+        else:
+            self.script_index = self.count_next()
+            
     def end_loop(self):
-        if self.loop_stack.length == 0:
+        if self.loop_stack.length() == 0:
             raise Exception("No opening loop")
         else:
             if self.memory_state[self.ptr] == 0:
@@ -117,18 +140,18 @@ class BrainfuckInterpreter:
 
     def exec_op(self):
         if self.script_index < len(self.op_list):
-            self.op_actions[self.op_list[self.script_index]]()
-            self.op_count += 1
+            if(self.op_list[self.script_index] in self.op_actions):
+                self.op_actions[self.op_list[self.script_index]]()
+                self.op_count += 1
             return ((self.script_index) == (len(self.op_list) - 1))
 
     def exec_script(self):
         while not self.terminated:
             self.script_index += 1
             self.terminated = self.exec_op()
-            #self.update_display()
-            #sleep(0)
+            self.update_display()
+            sleep(0.025)
         self.update_display()
-
 
     def update_display(self):
         system("clear")
@@ -136,26 +159,7 @@ class BrainfuckInterpreter:
         print("{0} operations have been executed".format(self.op_count))
         print("Executing : {0}".format(self.op_list[self.script_index]))
         print("{0} memory slots used".format(len(self.memory_state)))
-        print("Index in the program : {0}".format(self.script_index))
-        '''
-        for i in range(self.script_index - 10, self.script_index + 10):
-            if i >= 0 and i < len(self.op_list):
-                print("{0}".format(self.op_list[i]), end="")
-        print("")
-        for i in range(self.script_index - 10, self.script_index + 10):
-            if i == self.script_index:
-                print("^", end="")
-            elif i >= 0:
-                print(" ", end="")
-        print("")
-        for i in range(self.ptr - 5, self.ptr + 5):
-            if i >= 0 and i < len(self.memory_state):
-                if i == self.ptr:
-                    print(" [{0}] ".format(self.memory_state[i]), end=" ")
-                else:
-                    print(" {0} ".format(self.memory_state[i]), end=" ")
-        print("")
-        '''
+        print("Index : {0}".format(self.script_index))
         for i in range(0, len(self.op_list)):
             print(self.op_list[i], end="")
         print("")
@@ -174,12 +178,14 @@ class BrainfuckInterpreter:
         print("OUTPUT : {0}".format("".join(self.output_buffer)))
 
 
-hw = "++++++++++[>+++++++>++++++++++>+++>+<<<<-]>++.>+.+++++++..+++.>++.<<+++++++++++++++.>.+++.------.--------.>+.>." # works
-hw_bug = ">++++++++[-<+++++++++>]<.>>+>-[+]++>++>+++[>[->+++<<+++>]<<]>-----.>->+++..+++.>-.<<+[>[+>+]>>]<--------------.>>.+++.------.--------.>+.>+." # doesn't work
-eight_bit = "+[[->]-[-<]>-]>.>>>>.<<<<-.>>-.>.<<.>>>>-.<<<<<++.>>++." # works, so my custom 8 bits ints are working
-overflow_test = "[-]+[+]"
-short_hw = "--<-<<+[+[<+>--->->->-<<<]>]<<--.<++++++.<<-..<<.<+.>>.>>.<<<.+++.>>.>>-.<<<+."
 
-a = BrainfuckInterpreter(eight_bit)
+
+s = ScriptManager("bfprogs.cbf")
+a = BrainfuckInterpreter(s.ask())
 a.gen_op_list()
 a.exec_script()
+
+
+
+s="[+[---[----][---[]]---]+]+++[---]"
+
